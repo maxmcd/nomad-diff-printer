@@ -2,6 +2,7 @@ package nomaddiffprinter
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -37,7 +38,7 @@ potentially invalid.`
 	preemptionDisplayThreshold = 10
 )
 
-func PrintDiff(client *api.Client, job *api.Job) (err error) {
+func PlanAndPrintDiff(client *api.Client, job *api.Job, output io.Writer) (resp *api.JobPlanResponse, err error) {
 	// Force the region to be that of the job.
 	if r := job.Region; r != nil {
 		client.SetRegion(*r)
@@ -62,14 +63,16 @@ func PrintDiff(client *api.Client, job *api.Job) (err error) {
 	// }
 
 	// Submit the job
-	resp, _, err := client.Jobs().PlanOpts(job, opts, nil)
+	resp, _, err = client.Jobs().PlanOpts(job, opts, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	print := func(s string) {
+		fmt.Fprintln(output, s)
+	}
+	outputPlannedJob(job, resp, print, opts.Diff, true)
 
-	fmt.Println(outputPlannedJob(job, resp, opts.Diff, true))
-	formatJobModifyIndex(resp.JobModifyIndex, "")
-	return nil
+	return resp, err
 }
 
 // TODO: add multiregion support
@@ -97,7 +100,7 @@ func PrintDiff(client *api.Client, job *api.Job) (err error) {
 // 	}
 
 // 	for regionName, resp := range plans {
-// 		output(colorize().Color(fmt.Sprintf("[bold]Region: %q[reset]", regionName)))
+// 		print(colorize().Color(fmt.Sprintf("[bold]Region: %q[reset]", regionName)))
 // 		regionExitCode := c.outputPlannedJob(job, resp, diff, verbose)
 // 		if regionExitCode > exitCode {
 // 			exitCode = regionExitCode
@@ -113,47 +116,43 @@ func colorize() *colorstring.Colorize {
 		Reset:   true,
 	}
 }
-func output(s string) {
-	fmt.Println(s)
-}
 
-func outputPlannedJob(job *api.Job, resp *api.JobPlanResponse, diff, verbose bool) int {
-
+func outputPlannedJob(job *api.Job, resp *api.JobPlanResponse, print func(string), diff, verbose bool) int {
 	// Print the diff if not disabled
 	if diff {
-		output(fmt.Sprintf("%s\n",
+		print(fmt.Sprintf("%s\n",
 			colorize().Color(strings.TrimSpace(formatJobDiff(resp.Diff, verbose)))))
 	}
 
 	// Print the scheduler dry-run output
-	output(colorize().Color("[bold]Scheduler dry-run:[reset]"))
-	output(colorize().Color(formatDryRun(resp, job)))
-	output("")
+	print(colorize().Color("[bold]Scheduler dry-run:[reset]"))
+	print(colorize().Color(formatDryRun(resp, job)))
+	print("")
 
 	// Print any warnings if there are any
 	if resp.Warnings != "" {
-		output(
+		print(
 			colorize().Color(fmt.Sprintf("[bold][yellow]Job Warnings:\n%s[reset]\n", resp.Warnings)))
 	}
 
 	// Print preemptions if there are any
 	if resp.Annotations != nil && len(resp.Annotations.PreemptedAllocs) > 0 {
-		addPreemptions(resp)
+		addPreemptions(resp, print)
 	}
 
 	return getExitCode(resp)
 }
 
 // addPreemptions shows details about preempted allocations
-func addPreemptions(resp *api.JobPlanResponse) {
-	output(colorize().Color("[bold][yellow]Preemptions:\n[reset]"))
+func addPreemptions(resp *api.JobPlanResponse, print func(string)) {
+	print(colorize().Color("[bold][yellow]Preemptions:\n[reset]"))
 	if len(resp.Annotations.PreemptedAllocs) < preemptionDisplayThreshold {
 		var allocs []string
 		allocs = append(allocs, fmt.Sprintf("Alloc ID|Job ID|Task Group"))
 		for _, alloc := range resp.Annotations.PreemptedAllocs {
 			allocs = append(allocs, fmt.Sprintf("%s|%s|%s", alloc.ID, alloc.JobID, alloc.TaskGroup))
 		}
-		output(formatList(allocs))
+		print(formatList(allocs))
 		return
 	}
 	// Display in a summary format if the list is too large
@@ -195,7 +194,7 @@ func addPreemptions(resp *api.JobPlanResponse) {
 			outputs = append(outputs, fmt.Sprintf("%s|%d", jobType, total))
 		}
 	}
-	output(formatList(outputs))
+	print(formatList(outputs))
 
 }
 
@@ -222,14 +221,6 @@ func getExitCode(resp *api.JobPlanResponse) int {
 	}
 
 	return 0
-}
-
-// formatJobModifyIndex produces a help string that displays the job modify
-// index and how to submit a job with it.
-func formatJobModifyIndex(jobModifyIndex uint64, jobName string) string {
-	help := fmt.Sprintf(jobModifyIndexHelp, jobModifyIndex, jobName)
-	out := fmt.Sprintf("[reset][bold]Job Modify Index: %d[reset]\n%s", jobModifyIndex, help)
-	return out
 }
 
 // formatDryRun produces a string explaining the results of the dry run.
