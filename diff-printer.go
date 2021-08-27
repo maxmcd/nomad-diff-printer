@@ -8,10 +8,20 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/scheduler"
 	"github.com/mitchellh/colorstring"
 	"github.com/ryanuber/columnize"
 	"golang.org/x/crypto/ssh/terminal"
+)
+
+// UpdateTypes denote the type of update to occur against the task group.
+const (
+	schedulerUpdateTypeIgnore            = "ignore"
+	schedulerUpdateTypeCreate            = "create"
+	schedulerUpdateTypeDestroy           = "destroy"
+	schedulerUpdateTypeMigrate           = "migrate"
+	schedulerUpdateTypeCanary            = "canary"
+	schedulerUpdateTypeInplaceUpdate     = "in-place update"
+	schedulerUpdateTypeDestructiveUpdate = "create/destroy update"
 )
 
 const (
@@ -332,18 +342,18 @@ func formatTaskGroupDiff(tg *api.TaskGroupDiff, tgPrefix int, verbose bool) stri
 			count := tg.Updates[updateType]
 			var color string
 			switch updateType {
-			case scheduler.UpdateTypeIgnore:
-			case scheduler.UpdateTypeCreate:
+			case schedulerUpdateTypeIgnore:
+			case schedulerUpdateTypeCreate:
 				color = "[green]"
-			case scheduler.UpdateTypeDestroy:
+			case schedulerUpdateTypeDestroy:
 				color = "[red]"
-			case scheduler.UpdateTypeMigrate:
+			case schedulerUpdateTypeMigrate:
 				color = "[blue]"
-			case scheduler.UpdateTypeInplaceUpdate:
+			case schedulerUpdateTypeInplaceUpdate:
 				color = "[cyan]"
-			case scheduler.UpdateTypeDestructiveUpdate:
+			case schedulerUpdateTypeDestructiveUpdate:
 				color = "[yellow]"
-			case scheduler.UpdateTypeCanary:
+			case schedulerUpdateTypeCanary:
 				color = "[light_yellow]"
 			}
 			updates = append(updates, fmt.Sprintf("[reset]%s%d %s", color, count, updateType))
