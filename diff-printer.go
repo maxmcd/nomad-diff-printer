@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/colorstring"
 	"github.com/ryanuber/columnize"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // UpdateTypes denote the type of update to occur against the task group.
@@ -105,7 +105,7 @@ func PlanAndPrintDiff(client *api.Client, job *api.Job, output io.Writer) (resp 
 func colorize() *colorstring.Colorize {
 	return &colorstring.Colorize{
 		Colors:  colorstring.DefaultColors,
-		Disable: !terminal.IsTerminal(int(os.Stdout.Fd())),
+		Disable: !term.IsTerminal(int(os.Stdout.Fd())),
 		Reset:   true,
 	}
 }
