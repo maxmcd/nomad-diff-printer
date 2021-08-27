@@ -26,13 +26,6 @@ const (
 )
 
 const (
-	jobModifyIndexHelp = `To submit the job with version verification run:
-nomad job run -check-index %d %s
-When running the job with the check-index flag, the job will only be run if the
-job modify index given matches the server-side version. If the index has
-changed, another user has modified the job and the plan's results are
-potentially invalid.`
-
 	// preemptionDisplayThreshold is an upper bound used to limit and summarize
 	// the details of preempted jobs in the output
 	preemptionDisplayThreshold = 10
